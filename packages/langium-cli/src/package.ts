@@ -8,9 +8,10 @@ import fs from 'fs-extra';
 import type { IParserConfig } from 'langium';
 import path from 'path';
 import type { GenerateOptions } from './generate';
-import { log } from './generator/util';
+import { log, schema } from './generator/util';
 import chalk from 'chalk';
 import _ from 'lodash';
+import { validate } from 'jsonschema';
 
 export interface Package {
     name: string
@@ -37,6 +38,28 @@ export interface LangiumConfig {
     chevrotainParserConfig?: IParserConfig,
     /** The following option is meant to be used only by Langium itself */
     langiumInternal?: boolean
+}
+
+export interface LangiumConfigRaw {
+    /** Name of the language project */
+    projectName: string | [string, LangiumProjectNameConfigOptions]
+    /** Array of language configurations */
+    languages: LangiumLanguageConfig[]
+    /** Main output directory for TypeScript code */
+    out?: string
+    /** File extension for import statements of generated files */
+    importExtension?: string
+    /** Mode used to generate optimized files for development or production environments */
+    mode?: 'development' | 'production';
+    /** Configure the chevrotain parser for all languages */
+    chevrotainParserConfig?: IParserConfig,
+    /** The following option is meant to be used only by Langium itself */
+    langiumInternal?: boolean
+}
+
+export interface LangiumProjectNameConfigOptions {
+    /** Use the exact value without the default case type conversion */
+    exact?: boolean
 }
 
 export interface LangiumLanguageConfig {
@@ -88,17 +111,40 @@ export async function loadConfig(options: GenerateOptions): Promise<LangiumConfi
         }
         filePath = path.normalize(defaultFile);
     }
-    const relativePath = path.dirname(filePath);
     log('log', options, `Reading config from ${chalk.white.bold(filePath)}`);
+    let config: LangiumConfigRaw;
     try {
         const obj = await fs.readJson(filePath, { encoding: 'utf-8' });
-        const config: LangiumConfig = path.basename(filePath) === 'package.json' ? obj.langium : obj;
-        config.projectName = _.camelCase(config.projectName);
-        config.projectName = config.projectName.charAt(0).toUpperCase() + config.projectName.slice(1);
-        config[RelativePath] = relativePath;
-        return config;
+        config = path.basename(filePath) === 'package.json' ? obj.langium : obj;
     } catch (err) {
         log('error', options, chalk.red('Failed to read config file.'), err);
         process.exit(1);
     }
+
+    const validation = validate(config, await schema, {
+        nestedErrors: true
+    });
+    if (!validation.valid) {
+        log('error', options, chalk.red('Error: Your Langium configuration is invalid.'));
+        const errors = validation.errors.filter(error => error.path.length > 0);
+        errors.forEach(error => {
+            log('error', options, `--> ${error.stack}`);
+        });
+        process.exit(1);
+    }
+
+    return configPostProcessing(config, filePath);
+}
+
+function configPostProcessing(rawConfig: LangiumConfigRaw, filePath: string): LangiumConfig {
+    let projectName: string;
+    if (typeof rawConfig.projectName === 'string') {
+        projectName = _.upperFirst(_.camelCase(rawConfig.projectName));
+    } else if (!rawConfig.projectName[1].exact) {
+        projectName = _.upperFirst(_.camelCase(rawConfig.projectName[0]));
+    } else {
+        projectName = rawConfig.projectName[0];
+    }
+    const relativePath = path.dirname(filePath);
+    return {...rawConfig, projectName, [RelativePath]: relativePath};
 }

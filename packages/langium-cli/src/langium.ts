@@ -8,9 +8,8 @@ import type { LangiumConfig } from './package';
 import chalk from 'chalk';
 import fs from 'fs-extra';
 import { Command, Option } from 'commander';
-import { validate } from 'jsonschema';
 import { generate, generateTypes } from './generate';
-import { cliVersion, elapsedTime, getTime, log, schema } from './generator/util';
+import { cliVersion, elapsedTime, getTime } from './generator/util';
 import { loadConfig } from './package';
 
 const program = new Command();
@@ -43,17 +42,6 @@ program.parse(process.argv);
 
 async function runGenerator(options: GenerateOptions): Promise<void> {
     const config = await loadConfig(options);
-    const validation = validate(config, await schema, {
-        nestedErrors: true
-    });
-    if (!validation.valid) {
-        log('error', options, chalk.red('Error: Your Langium configuration is invalid.'));
-        const errors = validation.errors.filter(error => error.path.length > 0);
-        errors.forEach(error => {
-            log('error', options, `--> ${error.stack}`);
-        });
-        process.exit(1);
-    }
     const result = await generate(config, options);
     const successful = result.success;
     if (options.watch) {

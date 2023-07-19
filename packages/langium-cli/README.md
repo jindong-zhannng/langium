@@ -31,7 +31,14 @@ Schema:
 ```typescript
 {
     // Name of the language project
-    projectName: string
+    projectName: string |
+        [
+            string,
+            {
+                // Use the exact value without the default case type conversion. Default is `false`.
+                exact?: boolean
+            }
+        ]
     // Array of language configurations
     languages: {
         // The identifier of your language as used in vscode

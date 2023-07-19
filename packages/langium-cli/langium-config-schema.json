@@ -129,7 +129,32 @@
     "properties": {
         "projectName": {
             "description": "The name of your Langium project",
-            "type": "string"
+            "oneOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "array",
+                    "items": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "object",
+                            "description": "Additional options",
+                            "additionalProperties": false,
+                            "properties": {
+                                "exact": {
+                                    "type": "boolean",
+                                    "description": "Use the exact value without the default case type conversion"
+                                }
+                            }
+                        }
+                    ],
+                    "minItems": 2,
+                    "additionalItems": false
+                }
+            ]
         },
         "languages": {
             "description": "Your language configurations",
